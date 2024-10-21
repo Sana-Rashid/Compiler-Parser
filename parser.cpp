@@ -8,7 +8,8 @@
 using namespace std;
 
 enum TokenType {
-    T_INT, T_ID, T_NUM, T_IF, T_ELSE, T_RETURN,
+    T_INT, T_FLOAT, T_DOUBLE, T_STRING, T_BOOL, T_CHAR,
+    T_ID, T_NUM, T_IF, T_ELSE, T_RETURN,
     T_ASSIGN, T_PLUS, T_MINUS, T_MUL, T_DIV,
     T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE,
     T_SEMICOLON, T_GT, T_EOF,  // GT -> greater than
@@ -17,20 +18,20 @@ enum TokenType {
 struct Token {
     TokenType type;
     string value;
-    int line;  // Added to track line numbers
+    int line; 
 };
 
 class Lexer {
 private:
     string src;
     size_t pos;
-    int line;  // Added to track line numbers
+    int line;
 
 public:
     Lexer(const string &src) {
         this->src = src;  
         this->pos = 0;
-        this->line = 0;  
+        this->line = 1;  
     }
 
     vector<Token> tokenize() {
@@ -39,13 +40,18 @@ public:
             char current = src[pos];
 
             if (current == '\n') {
-                line++;  // Increment line number on newline
+                line++;
                 pos++;
                 continue;
             }
             if (isspace(current)) {
                 pos++;
                 continue;
+            }
+            if (current == '"') {
+                tokens.push_back(Token{T_STRING, consumeString(), line});
+            } else if (current == '\'') {
+                tokens.push_back(Token{T_CHAR, consumeChar(), line});
             }
             if (isdigit(current)) {
                 tokens.push_back(Token{T_NUM, consumeNumber(), line});
@@ -54,6 +60,11 @@ public:
             if (isalpha(current)) {
                 string word = consumeWord();
                 if (word == "int") tokens.push_back(Token{T_INT, word, line});
+                else if (word == "float") tokens.push_back(Token{T_FLOAT, word, line});
+                else if (word == "double") tokens.push_back(Token{T_DOUBLE, word, line});
+                else if (word == "string") tokens.push_back(Token{T_STRING, word, line});
+                else if (word == "bool") tokens.push_back(Token{T_BOOL, word, line});
+                else if (word == "char") tokens.push_back(Token{T_CHAR, word, line});
                 else if (word == "if") tokens.push_back(Token{T_IF, word, line});
                 else if (word == "else") tokens.push_back(Token{T_ELSE, word, line});
                 else if (word == "return") tokens.push_back(Token{T_RETURN, word, line});
@@ -85,7 +96,14 @@ public:
 
     string consumeNumber() {
         size_t start = pos;
-        while (pos < src.size() && isdigit(src[pos])) pos++;
+        bool hasDecimal = false;
+
+        while (pos < src.size() && (isdigit(src[pos]) || (src[pos] == '.' && !hasDecimal))) {
+            if (src[pos] == '.') {
+                hasDecimal = true;
+            }
+            pos++;
+        }
         return src.substr(start, pos - start);
     }
 
@@ -93,6 +111,25 @@ public:
         size_t start = pos;
         while (pos < src.size() && isalnum(src[pos])) pos++;
         return src.substr(start, pos - start);
+    }
+
+    string consumeString() {
+        pos++;
+        size_t start = pos;
+        while (pos < src.size() && src[pos] != '"') {
+            if (src[pos] == '\\') pos++;
+            pos++;
+        }
+        if (pos < src.size()) pos++;
+        return src.substr(start, pos - start - 1);
+    }
+
+    string consumeChar() {
+        pos++;
+        char c = src[pos];
+        pos++;
+        if (src[pos] == '\'') pos++;
+        return string(1, c);
     }
 };
 
@@ -111,14 +148,17 @@ private:
     vector<Token> tokens;
     size_t pos;
     map<TokenType, string> tokenTypeNames = {
-        {T_INT, "int"}, {T_ID, "identifier"}, {T_NUM, "number"}, {T_IF, "if"},
+        {T_INT, "int"},{T_FLOAT, "float"}, {T_DOUBLE, "double"}, {T_STRING, "string"}, {T_BOOL, "bool"}, {T_CHAR, "char"},
+        {T_ID, "identifier"}, {T_NUM, "number"}, {T_IF, "if"},
         {T_ELSE, "else"}, {T_RETURN, "return"}, {T_ASSIGN, "="}, {T_PLUS, "+"},
         {T_MINUS, "-"}, {T_MUL, "*"}, {T_DIV, "/"}, {T_LPAREN, "("}, {T_RPAREN, ")"},
         {T_LBRACE, "{"}, {T_RBRACE, "}"}, {T_SEMICOLON, ";"}, {T_GT, ">"}, {T_EOF, "EOF"}
     };
 
     void parseStatement() {
-        if (tokens[pos].type == T_INT) {
+        if (tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT ||
+            tokens[pos].type == T_DOUBLE || tokens[pos].type == T_STRING ||
+            tokens[pos].type == T_BOOL || tokens[pos].type == T_CHAR) {
             parseDeclaration();
         } else if (tokens[pos].type == T_ID) {
             parseAssignment();
@@ -142,9 +182,16 @@ private:
     }
 
     void parseDeclaration() {
-        expect(T_INT);
-        expect(T_ID);
-        expect(T_SEMICOLON);
+        if(tokens[pos].type == T_INT || tokens[pos].type == T_FLOAT || 
+            tokens[pos].type == T_DOUBLE || tokens[pos].type == T_STRING || 
+            tokens[pos].type == T_BOOL || tokens[pos].type == T_CHAR){
+            pos++;
+            expect(T_ID);
+            expect(T_SEMICOLON);
+        }
+        else {
+            reportSyntaxError("expected a data type", tokens[pos]);
+        }
     }
 
     void parseAssignment() {
@@ -193,7 +240,8 @@ private:
     }
 
     void parseFactor() {
-        if (tokens[pos].type == T_NUM || tokens[pos].type == T_ID) {
+        if (tokens[pos].type == T_NUM || tokens[pos].type == T_ID || tokens[pos].type == T_STRING ||
+            tokens[pos].type == T_CHAR || tokens[pos].type == T_BOOL) {
             pos++;
         } else if (tokens[pos].type == T_LPAREN) {
             expect(T_LPAREN);
@@ -245,7 +293,7 @@ int main(int argc, char* argv[]) {
 
     // Check if filename is passed from the command line
     if (argc < 2) {
-        cout << "Enter the source file name: ";
+        cout << "Enter the file name: ";
         cin >> filename;
     } else {
         filename = argv[1];
