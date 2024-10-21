@@ -17,6 +17,7 @@ enum TokenType {
 struct Token {
     TokenType type;
     string value;
+    int line;
 };
 
 class Lexer {
@@ -24,6 +25,7 @@ class Lexer {
     private:
         string src;
         size_t pos;
+        int line;
         /* size_t:
         It hold positive values. 
         In C++, size_t is an unsigned integer data type used to represent the 
@@ -35,6 +37,7 @@ class Lexer {
         Lexer(const string &src) {
             this->src = src;  
             this->pos = 0;    
+            this->line = 1;
         }
 
         vector<Token> tokenize() {
@@ -43,6 +46,10 @@ class Lexer {
                 char current = src[pos];
                 
                 if (isspace(current)) {
+                    if(current == '\n')
+                    {
+                        line++;
+                    }
                     pos++;
                     continue;
                 }
@@ -127,7 +134,8 @@ private:
         } else if (tokens[pos].type == T_LBRACE) {  
             parseBlock();
         } else {
-            cout << "Syntax error: unexpected token " << tokens[pos].value << endl;
+            cout << "Syntax error: unexpected token '" << tokens[pos].value 
+                 << "' on line " << tokens[pos].line << endl;
             exit(1);
         }
     }
@@ -198,7 +206,8 @@ private:
             parseExpression();
             expect(T_RPAREN);
         } else {
-            cout << "Syntax error: unexpected token " << tokens[pos].value << endl;
+            cout << "Syntax error: unexpected token '" << tokens[pos].value 
+                 << "' on line " << tokens[pos].line << endl;
             exit(1);
         }
     }
@@ -207,7 +216,9 @@ private:
         if (tokens[pos].type == type) {
             pos++;
         } else {
-            cout << "Syntax error: expected " << type << " but found " << tokens[pos].value << endl;
+            cout << "Syntax error: expected token type " << type 
+                 << " but found '" << tokens[pos].value 
+                 << "' on line " << tokens[pos].line << endl;
             exit(1);
         }
     }
